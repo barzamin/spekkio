@@ -10,12 +10,16 @@ body {
     width: 100vw;
     height: 100vh;
 
-    /* user-select: none; */
 }
 
 #drop-region {
     display: block;
     padding: 5em;
+}
+
+#spekkio {
+    user-select: none;
+    pointer-events: none;
 }
 
 .dragover {
