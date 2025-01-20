@@ -27,8 +27,8 @@ pub fn hann_window(n: usize) -> Vec<f32> {
         .collect()
 }
 
-#[wasm_bindgen]
 pub struct Analyzer {
+    window_size: usize,
     fft_planner: FftPlanner<f32>,
     fft: Arc<dyn Fft<f32>>,
     window_table: Vec<f32>,
@@ -42,6 +42,7 @@ impl Analyzer {
         let window_table = hann_window(window_size);
 
         Self {
+            window_size,
             fft_planner,
             fft,
             window_table,
@@ -49,24 +50,26 @@ impl Analyzer {
     }
 }
 
-#[wasm_bindgen]
-pub struct AudioDecoder {
+pub struct SymphoniaDecoder<'a> {
     codec_registry: CodecRegistry,
+    // format_reader - get raw packets
+    // decoder - decode those packets into GenericAudioBufferRef
+    format_reader: Box<dyn FormatReader + 'a>,
+    decoder: Box<dyn AudioDecoder>,
+    // heuristically chosen track (in multi-track files); we only decode packets with this track id
+    track_id: u32,
 }
 
-#[wasm_bindgen]
-impl AudioDecoder {
-    pub fn new() -> Self {
+
+impl<'a> SymphoniaDecoder<'a> {
+    pub fn new(buf: &'a [u8], mime_hint: Option<&str>) -> Self {
         let mut codec_registry = CodecRegistry::new();
         symphonia::default::register_enabled_codecs(&mut codec_registry);
 
-        Self { codec_registry }
-    }
-
-    #[wasm_bindgen]
-    pub fn decode(&self, buf: &[u8], mime_hint: &str) -> Vec<f32> {
         let mut hint = Hint::new();
-        hint.mime_type(mime_hint);
+        if let Some(mime_hint) = mime_hint {
+            hint.mime_type(mime_hint);
+        }
 
         let cursor = Cursor::new(buf);
         let mss = MediaSourceStream::new(Box::new(cursor), Default::default());
@@ -85,8 +88,7 @@ impl AudioDecoder {
             .expect("cant find a default audio track");
 
         let decode_opts: AudioDecoderOptions = Default::default();
-        let mut decoder = self
-            .codec_registry
+        let mut decoder = codec_registry
             .make_audio_decoder(
                 track
                     .codec_params
@@ -100,28 +102,36 @@ impl AudioDecoder {
 
         let track_id = track.id;
 
-        loop {
-            let packet = match format_reader.next_packet() {
+        Self {
+            codec_registry,
+            format_reader,
+            decoder,
+            track_id,
+        }
+    }
+
+    fn next_chunk(&mut self) -> Result<Option<GenericAudioBufferRef<'_>>, SymphoniaError> {
+        loop { // loop until we find a packet with the correct track_id
+            let packet = match self.format_reader.next_packet() {
                 Ok(Some(packet)) => packet,
-                Ok(None) => break, // end of stream
+                Ok(None) => return Ok(None), // end of stream
                 Err(SymphoniaError::ResetRequired) => unimplemented!("lol"),
-                Err(err) => {
-                    panic!("symphonia next_packet() error: {}", err);
-                }
+                Err(err) => return Err(err),
             };
 
-            while !format_reader.metadata().is_latest() {
-                format_reader.metadata().pop();
+            // consume metadata
+            while !self.format_reader.metadata().is_latest() {
+                self.format_reader.metadata().pop();
             }
 
             // only decode track of interest
-            if packet.track_id() != track_id {
-                continue;
+            if packet.track_id() != self.track_id {
+                continue; // go back for another packet
             }
 
-            match decoder.decode(&packet) {
+            match self.decoder.decode(&packet) {
                 Ok(decoded) => {
-                    // consume :3
+                    return Ok(Some(decoded))
                 }
                 Err(SymphoniaError::IoError(_)) => {
                     panic!("cant decode packet: io error");
@@ -134,7 +144,5 @@ impl AudioDecoder {
                 }
             }
         }
-
-        vec![]
     }
 }

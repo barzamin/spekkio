@@ -3,7 +3,7 @@ import './style.css';
 import * as rust from '../rust/pkg/index.js';
 
 rust.init();
-const audio_decoder = rust.AudioDecoder.new();
+// const audio_decoder = rust.AudioDecoder.new();
 
 const elDropTarget = document.getElementById('drop-region') as HTMLDivElement;
 const elSpekkio = document.getElementById('spekkio') as HTMLImageElement;
@@ -24,7 +24,6 @@ elDropTarget.addEventListener('drop', function (evt) {
     const file = item.getAsFile();
 
     file.arrayBuffer().then(buf => {
-        audio_decoder.decode(new Uint8Array(buf), item.type);
     });
 });
 
