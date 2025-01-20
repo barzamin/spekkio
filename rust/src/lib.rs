@@ -2,9 +2,10 @@ use std::{io::Cursor, sync::Arc};
 
 use rustfft::{Fft, FftPlanner};
 use symphonia::core::{
-    codecs::{audio::AudioDecoderOptions, registry::CodecRegistry, CodecParameters},
+    audio::{AudioBuffer, AudioSpec, GenericAudioBufferRef},
+    codecs::{audio::{AudioDecoder, AudioDecoderOptions}, registry::CodecRegistry, CodecParameters},
     errors::Error as SymphoniaError,
-    formats::{probe::Hint, FormatOptions, TrackType},
+    formats::{probe::Hint, FormatOptions, FormatReader, TrackType},
     io::{MediaSource, MediaSourceStream},
     meta::MetadataOptions,
 };
@@ -74,7 +75,7 @@ impl AudioDecoder {
         let fmt_opts: FormatOptions = Default::default();
         let meta_opts: MetadataOptions = Default::default();
         let mut format_reader = probe
-            .format(&hint, mss, fmt_opts, meta_opts)
+            .probe(&hint, mss, fmt_opts, meta_opts)
             .expect("probe error");
 
         // assume first (decodable) track is what we're looking for

@@ -18,11 +18,13 @@ wasm-bindgen = "0.2.93"
 
 [dependencies.symphonia]
 git = "https://github.com/pdeljanov/Symphonia"
-branch = "dev-0.6" # for non-'static MediaSources
+# branch = "dev-0.6" # for non-'static MediaSources
+rev = "4720e99334910a25a89596cf2cfa8fe01d7df4c2" # on branch dev-0.6
 default-features = false
 features = [
     "flac", "mp3", "vorbis",
     "wav", "aiff", "ogg",
+    "id3v2",
 ]
 
 [dependencies.web-sys]
